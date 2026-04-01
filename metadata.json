@@ -1,0 +1,5 @@
+{
+  "name": "Campus Digital Library",
+  "description": "Sistem informasi perpustakaan digital kampus untuk mendata buku masuk dan keluar.",
+  "requestFramePermissions": []
+}
