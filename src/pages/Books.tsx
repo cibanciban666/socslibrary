@@ -21,11 +21,13 @@ export default function Books() {
     stock: 1,
   });
 
-  const filteredBooks = books.filter(b => 
-    b.title.toLowerCase().includes(search.toLowerCase()) || 
-    b.author.toLowerCase().includes(search.toLowerCase()) ||
-    b.category.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredBooks = books
+    .filter(b => 
+      b.title.toLowerCase().includes(search.toLowerCase()) || 
+      b.author.toLowerCase().includes(search.toLowerCase()) ||
+      b.category.toLowerCase().includes(search.toLowerCase())
+    )
+    .sort((a, b) => a.title.localeCompare(b.title, 'id', { sensitivity: 'base' }));
 
   const handleOpenModal = (book?: Book) => {
     if (book) {
@@ -73,28 +75,25 @@ export default function Books() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Parse locally to update the UI and Database
     const reader = new FileReader();
     reader.onload = (event) => {
       const text = event.target?.result as string;
       parseCSV(text);
     };
     reader.readAsText(file);
-    e.target.value = ''; // reset input
+    e.target.value = '';
   };
 
   const parseCSV = (csvText: string) => {
     try {
-      const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== '');
+      const lines = csvText.split(/\r?\n/);
       if (lines.length < 2) throw new Error("File CSV kosong atau tidak memiliki data");
 
       const parsedBooks = [];
       
-      // Detect separator (comma or semicolon)
       const firstLine = lines[0];
       const separator = firstLine.includes(';') ? ';' : ',';
 
-      // Basic CSV parser that handles quotes
       const parseLine = (line: string) => {
         const result = [];
         let current = '';
@@ -116,26 +115,28 @@ export default function Books() {
       };
 
       for (let i = 1; i < lines.length; i++) {
-        const row = parseLine(lines[i]);
+        const line = lines[i].trim();
         
-        // Skip empty rows
-        if (row.length < 2) continue;
+        // Skip completely empty lines
+        if (!line) continue;
 
-        // Detect format based on column count or header
-        // Template format: Judul(0), Penulis(1), ISBN(2), Kategori(3), Stok(4)
-        // Old format: No(0), Title(1), Author(2), Publisher(3), Language(4), ISBN(5), Added Date(6), Copy Index(7), BookShelf(8)
+        const row = parseLine(line);
         
+        // Skip rows with no meaningful data
+        if (row.length < 2) continue;
+        if (!row[0] && !row[1]) continue;
+
         let title, author, isbn, category, stock;
 
         if (row.length >= 8) {
-          // Old format
+          // Format: No, Title, Author, Publisher, Language, ISBN, Added Date, Copy Index, BookShelf
           title = row[1] || 'Tanpa Judul';
           author = row[2] || 'Anonim';
           isbn = row[5] || '';
           category = row[8] || 'Umum';
           stock = 1;
         } else {
-          // Template format
+          // Template format: Judul, Penulis, ISBN, Kategori, Stok
           title = row[0] || 'Tanpa Judul';
           author = row[1] || 'Anonim';
           isbn = row[2] || '';
@@ -143,7 +144,8 @@ export default function Books() {
           stock = parseInt(row[4]) || 1;
         }
 
-        if (!title && !author) continue;
+        // Skip if no title AND no author
+        if (!title.trim() && !author.trim()) continue;
 
         parsedBooks.push({
           title: title.trim().substring(0, 990) || 'Tanpa Judul',
@@ -155,7 +157,7 @@ export default function Books() {
       }
 
       if (parsedBooks.length > 0) {
-        // Group by title to calculate total stock for identical books
+        // Merge duplicate titles (same title + author = same book, add stock)
         const groupedBooks = parsedBooks.reduce((acc, current) => {
           const existing = acc.find((b: any) => b.title === current.title && b.author === current.author);
           if (existing) {
@@ -166,7 +168,6 @@ export default function Books() {
           return acc;
         }, [] as any[]);
 
-        // Use async IIFE to await the import
         (async () => {
           try {
             await importBooks(groupedBooks);
@@ -287,7 +288,6 @@ export default function Books() {
         </Table>
       </div>
 
-      {/* Modal Form */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-xl shadow-lg w-full max-w-md overflow-hidden">
