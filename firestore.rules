@@ -41,13 +41,13 @@ service cloud.firestore {
     }
 
     function isValidBook(data) {
-      return data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
-             data.author is string && data.author.size() <= 100 &&
-             data.category is string && data.category.size() <= 50 &&
+      return data.title is string && data.title.size() > 0 && data.title.size() < 1000 &&
+             data.author is string && data.author.size() <= 500 &&
+             data.category is string && data.category.size() <= 200 &&
              data.stock is number && data.stock >= 0 &&
              data.available is number && data.available >= 0 && data.available <= data.stock &&
              data.createdAt is string &&
-             (!('isbn' in data) || (data.isbn is string && data.isbn.size() <= 50));
+             (!('isbn' in data) || (data.isbn is string && data.isbn.size() <= 100));
     }
 
     function isValidTransaction(data) {
