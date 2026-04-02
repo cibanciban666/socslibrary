@@ -90,6 +90,10 @@ export default function Books() {
 
       const parsedBooks = [];
       
+      // Detect separator (comma or semicolon)
+      const firstLine = lines[0];
+      const separator = firstLine.includes(';') ? ';' : ',';
+
       // Basic CSV parser that handles quotes
       const parseLine = (line: string) => {
         const result = [];
@@ -100,7 +104,7 @@ export default function Books() {
           const char = line[i];
           if (char === '"') {
             inQuotes = !inQuotes;
-          } else if (char === ',' && !inQuotes) {
+          } else if (char === separator && !inQuotes) {
             result.push(current.trim());
             current = '';
           } else {
@@ -114,17 +118,39 @@ export default function Books() {
       for (let i = 1; i < lines.length; i++) {
         const row = parseLine(lines[i]);
         
-        // Skip empty rows (like the ones at the end of the provided data)
-        if (row.length < 2 || (!row[1] && !row[2])) continue;
+        // Skip empty rows
+        if (row.length < 2) continue;
 
-        // Map to the specific CSV format:
-        // No(0), Title(1), Author(2), Publisher(3), Language(4), ISBN(5), Added Date(6), Copy Index(7), BookShelf(8)
+        // Detect format based on column count or header
+        // Template format: Judul(0), Penulis(1), ISBN(2), Kategori(3), Stok(4)
+        // Old format: No(0), Title(1), Author(2), Publisher(3), Language(4), ISBN(5), Added Date(6), Copy Index(7), BookShelf(8)
+        
+        let title, author, isbn, category, stock;
+
+        if (row.length >= 8) {
+          // Old format
+          title = row[1] || 'Tanpa Judul';
+          author = row[2] || 'Anonim';
+          isbn = row[5] || '';
+          category = row[8] || 'Umum';
+          stock = 1;
+        } else {
+          // Template format
+          title = row[0] || 'Tanpa Judul';
+          author = row[1] || 'Anonim';
+          isbn = row[2] || '';
+          category = row[3] || 'Umum';
+          stock = parseInt(row[4]) || 1;
+        }
+
+        if (!title && !author) continue;
+
         parsedBooks.push({
-          title: row[1] || 'Tanpa Judul',
-          author: row[2] || 'Anonim',
-          isbn: row[5] || '',
-          category: row[8] || 'Umum',
-          stock: 1, // Defaulting to 1 as per the data structure (each row seems to be a single copy)
+          title: title.trim(),
+          author: author.trim(),
+          isbn: isbn.trim(),
+          category: category.trim(),
+          stock: stock,
         });
       }
 
@@ -133,15 +159,23 @@ export default function Books() {
         const groupedBooks = parsedBooks.reduce((acc, current) => {
           const existing = acc.find((b: any) => b.title === current.title && b.author === current.author);
           if (existing) {
-            existing.stock += 1;
+            existing.stock += current.stock;
           } else {
             acc.push(current);
           }
           return acc;
         }, [] as any[]);
 
-        importBooks(groupedBooks);
-        alert(`Berhasil mengimpor ${groupedBooks.length} judul buku (Total ${parsedBooks.length} eksemplar)!`);
+        // Use async IIFE to await the import
+        (async () => {
+          try {
+            await importBooks(groupedBooks);
+            alert(`Berhasil mengimpor ${groupedBooks.length} judul buku (Total ${parsedBooks.length} eksemplar)!`);
+          } catch (err) {
+            alert("Gagal menyimpan ke database. Pastikan Anda memiliki akses atau format data valid.");
+            console.error(err);
+          }
+        })();
       } else {
         alert("Tidak ada data buku yang valid untuk diimpor.");
       }
