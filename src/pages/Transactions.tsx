@@ -79,7 +79,7 @@ export default function Transactions() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <div className="flex space-x-2 w-full sm:w-auto">
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto mt-4 sm:mt-0">
           <Button variant="outline" className="w-full sm:w-auto text-orange-600 border-orange-200 hover:bg-orange-50" onClick={() => handleOpenModal('OUT')}>
             <ArrowUpRight className="h-4 w-4 mr-2" />
             Buku Keluar (Pinjam)
