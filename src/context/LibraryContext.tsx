@@ -38,57 +38,6 @@ interface LibraryContextType {
 
 const LibraryContext = createContext<LibraryContextType | undefined>(undefined);
 
-enum OperationType {
-  CREATE = 'create',
-  UPDATE = 'update',
-  DELETE = 'delete',
-  LIST = 'list',
-  GET = 'get',
-  WRITE = 'write',
-}
-
-interface FirestoreErrorInfo {
-  error: string;
-  operationType: OperationType;
-  path: string | null;
-  authInfo: {
-    userId?: string;
-    email?: string | null;
-    emailVerified?: boolean;
-    isAnonymous?: boolean;
-    tenantId?: string | null;
-    providerInfo: {
-      providerId: string;
-      displayName: string | null;
-      email: string | null;
-      photoUrl: string | null;
-    }[];
-  }
-}
-
-function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
-  const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData.map(provider => ({
-        providerId: provider.providerId,
-        displayName: provider.displayName,
-        email: provider.email,
-        photoUrl: provider.photoURL
-      })) || []
-    },
-    operationType,
-    path
-  }
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
-}
-
 export const LibraryProvider = ({ children }: { children: ReactNode }) => {
   const [books, setBooks] = useState<Book[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -115,7 +64,7 @@ export const LibraryProvider = ({ children }: { children: ReactNode }) => {
       });
       setBooks(booksData);
     }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'books');
+      console.error('Firestore books error:', error);
     });
 
     const unsubTx = onSnapshot(collection(db, 'transactions'), (snapshot) => {
@@ -123,11 +72,10 @@ export const LibraryProvider = ({ children }: { children: ReactNode }) => {
       snapshot.forEach(doc => {
         txData.push({ id: doc.id, ...doc.data() } as Transaction);
       });
-      // Sort by date descending
       txData.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       setTransactions(txData);
     }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'transactions');
+      console.error('Firestore transactions error:', error);
     });
 
     return () => {
@@ -143,121 +91,98 @@ export const LibraryProvider = ({ children }: { children: ReactNode }) => {
       available: bookData.stock,
       createdAt: new Date().toISOString(),
     };
-    try {
-      await setDoc(doc(db, 'books', id), newBook);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, `books/${id}`);
-    }
+    await setDoc(doc(db, 'books', id), newBook);
   };
 
   const importBooks = async (booksData: Omit<Book, 'id' | 'createdAt' | 'available'>[]) => {
-    try {
-      // Firestore batch limit is 500 operations
-      const BATCH_SIZE = 400;
-      for (let i = 0; i < booksData.length; i += BATCH_SIZE) {
-        const chunk = booksData.slice(i, i + BATCH_SIZE);
-        const batch = writeBatch(db);
-        
-        chunk.forEach(data => {
-          const id = uuidv4();
-          const newBook = {
-            ...data,
-            available: data.stock,
-            createdAt: new Date().toISOString(),
-          };
-          batch.set(doc(db, 'books', id), newBook);
-        });
-        
-        await batch.commit();
-      }
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, 'books');
+    // Firestore batch limit is 500 operations, we use chunks of 100 to be safe
+    const CHUNK_SIZE = 100;
+    
+    for (let i = 0; i < booksData.length; i += CHUNK_SIZE) {
+      const chunk = booksData.slice(i, i + CHUNK_SIZE);
+      const batch = writeBatch(db);
+      
+      chunk.forEach(data => {
+        const id = uuidv4();
+        const newBook = {
+          ...data,
+          available: data.stock,
+          createdAt: new Date().toISOString(),
+        };
+        batch.set(doc(db, 'books', id), newBook);
+      });
+      
+      await batch.commit();
     }
   };
 
   const updateBook = async (id: string, updates: Partial<Book>) => {
-    try {
-      const bookRef = doc(db, 'books', id);
-      const bookSnap = await getDoc(bookRef);
-      if (!bookSnap.exists()) throw new Error("Book not found");
-      
-      const book = bookSnap.data() as Book;
-      let newAvailable = book.available;
-      
-      if (updates.stock !== undefined && updates.stock !== book.stock) {
-        const diff = updates.stock - book.stock;
-        newAvailable = book.available + diff;
-      }
-      
-      await updateDoc(bookRef, { ...updates, available: newAvailable });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `books/${id}`);
+    const bookRef = doc(db, 'books', id);
+    const bookSnap = await getDoc(bookRef);
+    if (!bookSnap.exists()) throw new Error("Book not found");
+    
+    const book = bookSnap.data() as Book;
+    let newAvailable = book.available;
+    
+    if (updates.stock !== undefined && updates.stock !== book.stock) {
+      const diff = updates.stock - book.stock;
+      newAvailable = book.available + diff;
     }
+    
+    await updateDoc(bookRef, { ...updates, available: newAvailable });
   };
 
   const deleteBook = async (id: string) => {
-    try {
-      await deleteDoc(doc(db, 'books', id));
-    } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `books/${id}`);
-    }
+    await deleteDoc(doc(db, 'books', id));
   };
 
   const recordTransaction = async (txData: Omit<Transaction, 'id' | 'date'>) => {
-    try {
-      const bookRef = doc(db, 'books', txData.bookId);
-      const bookSnap = await getDoc(bookRef);
-      if (!bookSnap.exists()) throw new Error("Buku tidak ditemukan");
+    const bookRef = doc(db, 'books', txData.bookId);
+    const bookSnap = await getDoc(bookRef);
+    if (!bookSnap.exists()) throw new Error("Buku tidak ditemukan");
 
-      const book = bookSnap.data() as Book;
-      if (txData.type === 'OUT' && book.available < txData.quantity) {
-        throw new Error("Stok buku tidak mencukupi untuk dipinjam");
-      }
-
-      const txId = uuidv4();
-      const newTx = {
-        ...txData,
-        date: new Date().toISOString(),
-      };
-
-      const newAvailable = txData.type === 'IN' 
-        ? book.available + txData.quantity 
-        : book.available - txData.quantity;
-
-      const batch = writeBatch(db);
-      batch.set(doc(db, 'transactions', txId), newTx);
-      batch.update(bookRef, { available: newAvailable });
-      await batch.commit();
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, 'transactions');
+    const book = bookSnap.data() as Book;
+    if (txData.type === 'OUT' && book.available < txData.quantity) {
+      throw new Error("Stok buku tidak mencukupi untuk dipinjam");
     }
+
+    const txId = uuidv4();
+    const newTx = {
+      ...txData,
+      date: new Date().toISOString(),
+    };
+
+    const newAvailable = txData.type === 'IN' 
+      ? book.available + txData.quantity 
+      : book.available - txData.quantity;
+
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'transactions', txId), newTx);
+    batch.update(bookRef, { available: newAvailable });
+    await batch.commit();
   };
 
   const deleteTransaction = async (id: string) => {
-    try {
-      const txRef = doc(db, 'transactions', id);
-      const txSnap = await getDoc(txRef);
-      if (!txSnap.exists()) return;
+    const txRef = doc(db, 'transactions', id);
+    const txSnap = await getDoc(txRef);
+    if (!txSnap.exists()) return;
 
-      const tx = txSnap.data() as Transaction;
-      const bookRef = doc(db, 'books', tx.bookId);
-      const bookSnap = await getDoc(bookRef);
-      
-      const batch = writeBatch(db);
-      batch.delete(txRef);
+    const tx = txSnap.data() as Transaction;
+    const bookRef = doc(db, 'books', tx.bookId);
+    const bookSnap = await getDoc(bookRef);
+    
+    const batch = writeBatch(db);
+    batch.delete(txRef);
 
-      if (bookSnap.exists()) {
-        const book = bookSnap.data() as Book;
-        const newAvailable = tx.type === 'IN' 
-          ? book.available - tx.quantity 
-          : book.available + tx.quantity;
-        batch.update(bookRef, { available: newAvailable });
-      }
-
-      await batch.commit();
-    } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `transactions/${id}`);
+    if (bookSnap.exists()) {
+      const book = bookSnap.data() as Book;
+      const newAvailable = tx.type === 'IN' 
+        ? book.available - tx.quantity 
+        : book.available + tx.quantity;
+      batch.update(bookRef, { available: newAvailable });
     }
+
+    await batch.commit();
   };
 
   return (
