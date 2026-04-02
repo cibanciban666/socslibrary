@@ -181,7 +181,7 @@ export const LibraryProvider = ({ children }: { children: ReactNode }) => {
         : book.available + tx.quantity;
       batch.update(bookRef, { available: newAvailable });
     }
-
+ 
     await batch.commit();
   };
 
