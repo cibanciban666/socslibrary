@@ -8,9 +8,9 @@ import { id } from 'date-fns/locale';
 export default function Dashboard() {
   const { books, transactions } = useLibrary();
 
-  const totalBooks = books.reduce((acc, book) => acc + book.stock, 0);
+  const totalBooks = books.length;
   const totalAvailable = books.reduce((acc, book) => acc + book.available, 0);
-  const totalBorrowed = totalBooks - totalAvailable;
+  const totalBorrowed = books.reduce((acc, book) => acc + (book.stock - book.available), 0);
 
   const recentTransactions = transactions.slice(0, 5);
 
@@ -24,7 +24,7 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-gray-900">{totalBooks}</div>
-            <p className="text-xs text-gray-500 mt-1">Total eksemplar buku di kampus</p>
+            <p className="text-xs text-gray-500 mt-1">Total judul buku di kampus</p>
           </CardContent>
         </Card>
         <Card>
