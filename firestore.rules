@@ -1,0 +1,80 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: books
+    // Document ID: auto-generated
+    // Fields:
+    //   - title: string (required)
+    //   - author: string (required)
+    //   - isbn: string (optional)
+    //   - category: string (required)
+    //   - stock: number (required, >= 0)
+    //   - available: number (required, >= 0)
+    //   - createdAt: string (required)
+    //
+    // Collection: transactions
+    // Document ID: auto-generated
+    // Fields:
+    //   - bookId: string (required)
+    //   - type: string (required, 'IN' or 'OUT')
+    //   - quantity: number (required, > 0)
+    //   - date: string (required)
+    //   - borrowerName: string (optional)
+    //   - notes: string (optional)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function isValidBook(data) {
+      return data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+             data.author is string && data.author.size() > 0 && data.author.size() < 100 &&
+             data.category is string && data.category.size() > 0 && data.category.size() < 50 &&
+             data.stock is number && data.stock >= 0 &&
+             data.available is number && data.available >= 0 && data.available <= data.stock &&
+             data.createdAt is string &&
+             (!('isbn' in data) || (data.isbn is string && data.isbn.size() <= 50));
+    }
+
+    function isValidTransaction(data) {
+      return data.bookId is string && data.bookId.size() > 0 &&
+             data.type in ['IN', 'OUT'] &&
+             data.quantity is number && data.quantity > 0 &&
+             data.date is string &&
+             (!('borrowerName' in data) || (data.borrowerName is string && data.borrowerName.size() <= 100)) &&
+             (!('notes' in data) || (data.notes is string && data.notes.size() <= 500));
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+    
+    match /books/{bookId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && hasRequiredFields(['title', 'author', 'category', 'stock', 'available', 'createdAt']) && isValidBook(request.resource.data);
+      allow update: if isAuthenticated() && isValidBook(request.resource.data);
+      allow delete: if isAuthenticated();
+    }
+
+    match /transactions/{transactionId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && hasRequiredFields(['bookId', 'type', 'quantity', 'date']) && isValidTransaction(request.resource.data);
+      allow update: if isAuthenticated() && isValidTransaction(request.resource.data);
+      allow delete: if isAuthenticated();
+    }
+  }
+}

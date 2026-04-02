@@ -69,26 +69,11 @@ export default function Books() {
     fileInputRef.current?.click();
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // 1. Upload file to server to save it permanently
-    const formData = new FormData();
-    formData.append('file', file);
-    try {
-      const uploadRes = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData
-      });
-      if (!uploadRes.ok) {
-        console.warn("Gagal menyimpan file ke server, tapi data tetap akan diimpor.");
-      }
-    } catch (err) {
-      console.error("Error uploading file:", err);
-    }
-
-    // 2. Parse locally to update the UI and Database
+    // Parse locally to update the UI and Database
     const reader = new FileReader();
     reader.onload = (event) => {
       const text = event.target?.result as string;
