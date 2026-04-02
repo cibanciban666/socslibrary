@@ -152,17 +152,24 @@ export const LibraryProvider = ({ children }: { children: ReactNode }) => {
 
   const importBooks = async (booksData: Omit<Book, 'id' | 'createdAt' | 'available'>[]) => {
     try {
-      const batch = writeBatch(db);
-      booksData.forEach(data => {
-        const id = uuidv4();
-        const newBook = {
-          ...data,
-          available: data.stock,
-          createdAt: new Date().toISOString(),
-        };
-        batch.set(doc(db, 'books', id), newBook);
-      });
-      await batch.commit();
+      // Firestore batch limit is 500 operations
+      const BATCH_SIZE = 400;
+      for (let i = 0; i < booksData.length; i += BATCH_SIZE) {
+        const chunk = booksData.slice(i, i + BATCH_SIZE);
+        const batch = writeBatch(db);
+        
+        chunk.forEach(data => {
+          const id = uuidv4();
+          const newBook = {
+            ...data,
+            available: data.stock,
+            createdAt: new Date().toISOString(),
+          };
+          batch.set(doc(db, 'books', id), newBook);
+        });
+        
+        await batch.commit();
+      }
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'books');
     }
