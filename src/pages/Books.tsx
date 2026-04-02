@@ -146,10 +146,10 @@ export default function Books() {
         if (!title && !author) continue;
 
         parsedBooks.push({
-          title: title.trim(),
-          author: author.trim(),
-          isbn: isbn.trim(),
-          category: category.trim(),
+          title: title.trim().substring(0, 990) || 'Tanpa Judul',
+          author: author.trim().substring(0, 490),
+          isbn: isbn.trim().substring(0, 90),
+          category: category.trim().substring(0, 190),
           stock: stock,
         });
       }
@@ -171,8 +171,8 @@ export default function Books() {
           try {
             await importBooks(groupedBooks);
             alert(`Berhasil mengimpor ${groupedBooks.length} judul buku (Total ${parsedBooks.length} eksemplar)!`);
-          } catch (err) {
-            alert("Gagal menyimpan ke database. Pastikan Anda memiliki akses atau format data valid.");
+          } catch (err: any) {
+            alert("Gagal menyimpan ke database. Error: " + (err.message || err));
             console.error(err);
           }
         })();
