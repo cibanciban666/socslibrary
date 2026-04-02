@@ -191,7 +191,7 @@ export default function Books() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <div className="flex space-x-2 w-full sm:w-auto">
+        <div className="flex flex-wrap sm:flex-nowrap gap-2 w-full sm:w-auto mt-4 sm:mt-0">
           <input 
             type="file" 
             accept=".csv" 
@@ -199,14 +199,14 @@ export default function Books() {
             ref={fileInputRef} 
             onChange={handleFileUpload} 
           />
-          <Button variant="outline" onClick={downloadTemplate} title="Download Template CSV">
+          <Button variant="outline" onClick={downloadTemplate} title="Download Template CSV" className="flex-1 sm:flex-none">
             <Download className="h-4 w-4" />
           </Button>
-          <Button variant="outline" onClick={handleImportClick}>
+          <Button variant="outline" onClick={handleImportClick} className="flex-1 sm:flex-none">
             <Upload className="h-4 w-4 mr-2" />
             Import CSV
           </Button>
-          <Button onClick={() => handleOpenModal()}>
+          <Button onClick={() => handleOpenModal()} className="w-full sm:w-auto">
             <Plus className="h-4 w-4 mr-2" />
             Tambah Buku
           </Button>
