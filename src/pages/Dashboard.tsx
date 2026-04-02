@@ -8,9 +8,9 @@ import { id } from 'date-fns/locale';
 export default function Dashboard() {
   const { books, transactions } = useLibrary();
 
-  const totalBooks = books.length;
+  const totalBooks = books.reduce((acc, book) => acc + book.stock, 0);
   const totalAvailable = books.reduce((acc, book) => acc + book.available, 0);
-  const totalBorrowed = books.reduce((acc, book) => acc + (book.stock - book.available), 0);
+  const totalBorrowed = totalBooks - totalAvailable;
 
   const recentTransactions = transactions.slice(0, 5);
 
